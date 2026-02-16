@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'models.dart';
 
 void main() {
@@ -62,410 +63,153 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isWideScreen = MediaQuery.of(context).size.width > 900;
+    final bool useMobileLayout = !isWideScreen;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
+      appBar: useMobileLayout 
+        ? AppBar(
+            title: const Text('AttendEase', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7C3AED), fontSize: 20)),
+            centerTitle: true,
+            backgroundColor: Colors.white,
+            elevation: 0,
+          )
+        : null,
       body: Row(
         children: [
-          if (isWideScreen) _buildSidebar(),
+          if (!useMobileLayout) _buildSidebar(),
           Expanded(
-            child: Column(
-              children: [
-                if (!isWideScreen) _buildMobileAppBar(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32.0),
-                    child: _buildCurrentTab(),
-                  ),
-                ),
-              ],
+            child: SafeArea(
+              child: _selectedIndex == 0 
+                  ? _buildDashboardContent(isWideScreen) 
+                  : (_selectedIndex == 1 ? _buildStudentManagementContent(isWideScreen) : _buildHistoryContent(isWideScreen)),
             ),
           ),
         ],
       ),
-      drawer: !isWideScreen ? Drawer(child: _buildSidebarContent()) : null,
-    );
-  }
-
-  Widget _buildCurrentTab() {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildDashboardContent();
-      case 1:
-        return _buildStudentManagementContent();
-      case 2:
-        return _buildHistoryContent();
-      default:
-        return _buildDashboardContent();
-    }
-  }
-
-  Widget _buildMobileAppBar() {
-    return AppBar(
-      title: const Text('AttendEase', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7C3AED))),
-      backgroundColor: Colors.white,
-      elevation: 0,
+      bottomNavigationBar: useMobileLayout 
+        ? _buildBottomNavBar()
+        : null,
+      floatingActionButton: (useMobileLayout && _selectedIndex != 2)
+          ? FloatingActionButton(
+              onPressed: () => _selectedIndex == 0 ? _showAddSubjectDialog() : _showAddStudentDialog(),
+              backgroundColor: const Color(0xFF7C3AED),
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 
   Widget _buildSidebar() {
     return Container(
-      width: 250,
+      width: 260,
       color: Colors.white,
-      child: _buildSidebarContent(),
-    );
-  }
-
-  Widget _buildSidebarContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Row(
-            children: [
-              Icon(Icons.calendar_today, color: Color(0xFF7C3AED)),
-              SizedBox(width: 12),
-              Text(
-                'AttendEase',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                ),
-              ),
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_today, color: Color(0xFF7C3AED)),
+                SizedBox(width: 12),
+                Text('AttendEase', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        _sidebarItem(Icons.grid_view_rounded, 'Subjects', 0),
-        _sidebarItem(Icons.group_outlined, 'Students', 1),
-        _sidebarItem(Icons.history, 'History', 2),
-      ],
+          const SizedBox(height: 20),
+          _sidebarItem(Icons.grid_view_rounded, 'Dashboard', 0),
+          _sidebarItem(Icons.group_outlined, 'Students', 1),
+          _sidebarItem(Icons.history, 'History', 2),
+        ],
+      ),
     );
   }
 
   Widget _sidebarItem(IconData icon, String label, int index) {
     bool isSelected = _selectedIndex == index;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: InkWell(
-        onTap: () {
-          setState(() => _selectedIndex = index);
-          if (Navigator.canPop(context)) Navigator.pop(context);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF7C3AED) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: isSelected ? Colors.white : Colors.grey[600]),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[600],
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: ListTile(
+        onTap: () => setState(() => _selectedIndex = index),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        tileColor: isSelected ? const Color(0xFF7C3AED) : Colors.transparent,
+        leading: Icon(icon, color: isSelected ? Colors.white : Colors.grey[600]),
+        title: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.grey[600], fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
       ),
     );
   }
 
-  // --- Dashboard Tab ---
-  Widget _buildDashboardContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Welcome, Professor', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-        const Text('Manage your subjects and track student attendance with ease.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-        const SizedBox(height: 32),
-        _buildStatsGrid(),
-        const SizedBox(height: 48),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Your Subjects', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-            ElevatedButton.icon(
-              onPressed: () => _showAddSubjectDialog(),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Subject'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        _buildSubjectsGrid(),
-      ],
-    );
-  }
-
-  // --- Student Management Tab ---
-  Widget _buildStudentManagementContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Student Management', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-        const Text('Add, edit, and manage subject enrollment for all students.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: const TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search students...',
-                    border: InputBorder.none,
-                    icon: Icon(Icons.search, color: Colors.grey),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: () => _showAddStudentDialog(),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Student'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _allStudents.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) => _buildStudentCard(_allStudents[index]),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStudentCard(Student student) {
+  Widget _buildBottomNavBar() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))]),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: const Color(0xFF7C3AED),
+        unselectedItemColor: Colors.grey[400],
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'Dashboard'),
+          BottomNavigationBarItem(icon: Icon(Icons.group_rounded), label: 'Students'),
+          BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'History'),
+        ],
       ),
-      child: Row(
+    );
+  }
+
+  Widget _buildDashboardContent(bool isWide) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isWide ? 40.0 : 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(student.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(student.rollNumber, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                    ),
+                    Text('Welcome, Professor', style: TextStyle(fontSize: isWide ? 28 : 22, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                    Text('Manage your subjects and track attendance.', style: TextStyle(fontSize: 14, color: Colors.grey), overflow: TextOverflow.ellipsis),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: student.enrolledSubjectIds.map((id) {
-                    final subject = _subjects.firstWhere((s) => s.id == id, orElse: () => Subject(id: '0', name: 'Unknown'));
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF7C3AED).withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF7C3AED).withOpacity(0.1)),
-                      ),
-                      child: Text(
-                        subject.name,
-                        style: const TextStyle(color: Color(0xFF7C3AED), fontSize: 11, fontWeight: FontWeight.w500),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          IconButton(onPressed: () {}, icon: Icon(Icons.book_outlined, color: Colors.grey[400])),
-          IconButton(onPressed: () {}, icon: Icon(Icons.more_vert, color: Colors.grey[400])),
-        ],
-      ),
-    );
-  }
-
-  // --- History Tab ---
-  Widget _buildHistoryContent() {
-    final List<Map<String, dynamic>> historyData = [
-      {'name': 'Calculus', 'date': 'Oct 25, 2023', 'present': 42, 'total': 45, 'percent': 93},
-      {'name': 'Data Structures', 'date': 'Oct 24, 2023', 'present': 35, 'total': 38, 'percent': 92},
-      {'name': 'Assembly', 'date': 'Oct 24, 2023', 'present': 30, 'total': 32, 'percent': 94},
-      {'name': 'Calculus', 'date': 'Oct 23, 2023', 'present': 44, 'total': 45, 'percent': 98},
-      {'name': 'Algorithms', 'date': 'Oct 22, 2023', 'present': 39, 'total': 40, 'percent': 98},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Attendance History', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-        const Text('View and export past attendance records.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            _buildFilterButton(Icons.calendar_today_outlined, 'Date Range'),
-            const SizedBox(width: 12),
-            _buildFilterButton(Icons.filter_list, 'All Subjects'),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.download_outlined, size: 18),
-              label: const Text('Export All'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF111827),
-                side: const BorderSide(color: Color(0xFFE5E7EB)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 0,
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: historyData.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) => _buildHistoryCard(historyData[index]),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterButton(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: FontWeight.w500)),
-          const SizedBox(width: 4),
-          const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(Map<String, dynamic> data) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text(data['name'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text('COMPLETED', style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold)),
-              ),
-              const Spacer(),
-              Text('${data['percent']}%', style: const TextStyle(color: Color(0xFF7C3AED), fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[400]),
-              const SizedBox(width: 6),
-              Text(data['date'], style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-              const SizedBox(width: 12),
-              Text('•', style: TextStyle(color: Colors.grey[300])),
-              const SizedBox(width: 12),
-              Text('${data['present']}/${data['total']} Students Present', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-              const Spacer(),
-              TextButton(
-                onPressed: () {},
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-                child: const Text('View List', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              if (isWide) ElevatedButton.icon(
+                onPressed: _showAddSubjectDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Subject'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: data['percent'] / 100,
-              backgroundColor: const Color(0xFFF3F4F6),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C3AED)),
-              minHeight: 8,
-            ),
-          ),
+          const SizedBox(height: 32),
+          _buildStatsGrid(isWide),
+          const SizedBox(height: 48),
+          const Text('Your Subjects', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 24),
+          _buildSubjectsGrid(isWide),
         ],
       ),
     );
   }
 
-  // --- Helper Widgets ---
-  Widget _buildStatsGrid() {
+  Widget _buildStatsGrid(bool isWide) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = constraints.maxWidth > 800 ? 3 : (constraints.maxWidth > 500 ? 2 : 1);
+        int crossAxisCount = isWide ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
         return GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: crossAxisCount,
-          crossAxisSpacing: 24,
-          mainAxisSpacing: 24,
-          childAspectRatio: 2.5,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: isWide ? 2.5 : 2.0,
           children: [
-            _statCard('Total Students', '155', '+4 since last semester', Icons.group, true),
-            _statCard('Active Subjects', '4', 'Across 2 departments', Icons.book_outlined, false),
-            _statCard('Overall Attendance', '88.4%', '+2.1% from last month', Icons.pie_chart_outline, false),
+            _statCard('Total Students', '155', '+4', Icons.group, true),
+            _statCard('Active Subjects', '4', '0', Icons.book_outlined, false),
+            _statCard('Overall Attendance', '88.4%', '+2.1%', Icons.pie_chart_outline, false),
           ],
         );
       },
@@ -474,91 +218,85 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _statCard(String title, String value, String trend, IconData icon, bool isPrimary) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isPrimary ? const Color(0xFF7C3AED) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(title, style: TextStyle(color: isPrimary ? Colors.white.withOpacity(0.8) : Colors.grey[600], fontSize: 14)),
-                const SizedBox(height: 8),
-                Text(value, style: TextStyle(color: isPrimary ? Colors.white : const Color(0xFF111827), fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(trend, style: TextStyle(color: isPrimary ? Colors.white.withOpacity(0.7) : Colors.grey[500], fontSize: 12)),
-              ],
-            ),
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Icon(icon, color: isPrimary ? Colors.white.withOpacity(0.2) : const Color(0xFF7C3AED).withOpacity(0.1), size: 40),
           ),
-          Icon(icon, color: isPrimary ? Colors.white.withOpacity(0.3) : const Color(0xFF7C3AED).withOpacity(0.3), size: 40),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(title, style: TextStyle(color: isPrimary ? Colors.white.withOpacity(0.8) : Colors.grey[600], fontSize: 13), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              Text(value, style: TextStyle(color: isPrimary ? Colors.white : const Color(0xFF111827), fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(trend, style: TextStyle(color: isPrimary ? Colors.white.withOpacity(0.7) : Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSubjectsGrid() {
+  Widget _buildSubjectsGrid(bool isWide) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = constraints.maxWidth > 800 ? 2 : 1;
+        int crossAxisCount = isWide ? 2 : 1;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 24,
-            mainAxisSpacing: 24,
-            childAspectRatio: 2.2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: isWide ? 2.2 : 1.8,
           ),
           itemCount: _subjects.length,
-          itemBuilder: (context, index) => _subjectCard(_subjects[index]),
+          itemBuilder: (context, index) => _subjectCard(_subjects[index], isWide),
         );
       },
     );
   }
 
-  Widget _subjectCard(Subject subject) {
+  Widget _subjectCard(Subject subject, bool isWide) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(subject.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-              const Icon(Icons.chevron_right, color: Colors.grey),
+              Expanded(child: Text(subject.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827)), overflow: TextOverflow.ellipsis)),
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
             ],
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${subject.studentIds.length} Students',
-              style: const TextStyle(color: Color(0xFF7C3AED), fontSize: 12, fontWeight: FontWeight.w600),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0xFF7C3AED).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text('${subject.studentIds.length} Students', style: const TextStyle(color: Color(0xFF7C3AED), fontSize: 11, fontWeight: FontWeight.w600)),
           ),
           const Spacer(),
+          const Divider(),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Next Class: 10:30 AM', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Next: 10:30 AM', style: TextStyle(color: Colors.grey, fontSize: 13)),
               TextButton(
                 onPressed: () {},
-                child: const Text('Mark Attendance', style: TextStyle(color: Color(0xFF7C3AED), fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                child: const Text('Mark Attendance', style: TextStyle(color: Color(0xFF7C3AED), fontWeight: FontWeight.bold, fontSize: 13)),
               ),
             ],
           ),
@@ -567,58 +305,161 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _showAddSubjectDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Subject'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Subject Name'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                _addSubject(controller.text);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Add'),
+  Widget _buildStudentManagementContent(bool isWide) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isWide ? 40.0 : 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Student Management', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const Text('Add and manage your student database.', style: TextStyle(fontSize: 14, color: Colors.grey)),
+          const SizedBox(height: 24),
+          _buildSearchAndFilter(isWide),
+          const SizedBox(height: 24),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _allStudents.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) => _studentCard(_allStudents[index], isWide),
           ),
         ],
       ),
     );
   }
 
-  void _showAddStudentDialog() {
-    final nameController = TextEditingController();
-    final rollController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New Student'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameController, decoration: const InputDecoration(hintText: 'Student Name')),
-            TextField(controller: rollController, decoration: const InputDecoration(hintText: 'Roll Number (e.g. CS-001)')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty && rollController.text.isNotEmpty) {
-                _addStudent(nameController.text, rollController.text);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Add'),
+  Widget _buildSearchAndFilter(bool isWide) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: const TextField(
+        decoration: InputDecoration(hintText: 'Search students...', border: InputBorder.none, icon: Icon(Icons.search, color: Colors.grey, size: 20)),
+      ),
+    );
+  }
+
+  Widget _studentCard(Student student, bool isWide) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+      child: Row(
+        children: [
+          CircleAvatar(backgroundColor: const Color(0xFF7C3AED).withOpacity(0.1), radius: 20, child: Text(student.name[0], style: const TextStyle(color: Color(0xFF7C3AED), fontWeight: FontWeight.bold, fontSize: 14))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(student.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                Text(student.rollNumber, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+              ],
+            ),
+          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryContent(bool isWide) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isWide ? 40.0 : 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Attendance History', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const Text('View logs of previous sessions.', style: TextStyle(fontSize: 14, color: Colors.grey)),
+          const SizedBox(height: 24),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) => _historyCard(isWide),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _historyCard(bool isWide) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Calculus', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const Text('93%', style: TextStyle(color: Color(0xFF7C3AED), fontWeight: FontWeight.bold, fontSize: 15)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text('Oct 25, 2023', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+              const Spacer(),
+              const Text('42/45 Present', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: const LinearProgressIndicator(value: 0.93, backgroundColor: Color(0xFFF3F4F6), valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C3AED)), minHeight: 6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddSubjectDialog() {
+    final controller = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Add Subject', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          TextField(controller: controller, decoration: const InputDecoration(hintText: 'e.g. Algorithms')),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () { if (controller.text.isNotEmpty) _addSubject(controller.text); Navigator.pop(context); },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+            child: const Text('Add'),
+          ),
+          const SizedBox(height: 24),
+        ]),
+      ),
+    );
+  }
+
+  void _showAddStudentDialog() {
+    final name = TextEditingController();
+    final roll = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Add Student', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          TextField(controller: name, decoration: const InputDecoration(hintText: 'Name')),
+          const SizedBox(height: 12),
+          TextField(controller: roll, decoration: const InputDecoration(hintText: 'Roll Number')),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () { if (name.text.isNotEmpty) _addStudent(name.text, roll.text); Navigator.pop(context); },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF7C3AED), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+            child: const Text('Add'),
+          ),
+          const SizedBox(height: 24),
+        ]),
       ),
     );
   }
