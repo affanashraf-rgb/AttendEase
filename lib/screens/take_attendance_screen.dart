@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/models.dart';
 
 class TakeAttendanceScreen extends StatefulWidget {
@@ -47,6 +48,87 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
     });
   }
 
+  void _shareOnWhatsApp(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Share Attendance via WhatsApp', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            _shareOption('Absent Name & Roll No', 1),
+            _shareOption('Absent Roll No Only', 2),
+            _shareOption('Present Roll No Only', 3),
+            _shareOption('Present Name & Roll No', 4),
+            _shareOption('Complete Attendance', 5),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shareOption(String title, int type) {
+    return ListTile(
+      leading: const Icon(Icons.share, color: Color(0xFF7C3AED)),
+      title: Text(title),
+      onTap: () {
+        Navigator.pop(context);
+        _generateAndSendWhatsApp(type);
+      },
+    );
+  }
+
+  void _generateAndSendWhatsApp(int type) async {
+    String dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    String message = "*Attendance Report - ${widget.subject.name}*\nDate: $dateStr\n\n";
+
+    List<Student> presentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.present || _statuses[s.id] == AttendanceStatus.late).toList();
+    List<Student> absentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.absent).toList();
+
+    switch (type) {
+      case 1: // Absent Name & Roll No
+        message += "*Absent Students:*\n";
+        for (var s in absentOnes) {
+          message += "- ${s.name} (${s.rollNumber})\n";
+        }
+        break;
+      case 2: // Absent Roll No Only
+        message += "*Absent Roll Numbers:*\n";
+        message += absentOnes.map((s) => s.rollNumber).join(", ");
+        break;
+      case 3: // Present Roll No Only
+        message += "*Present Roll Numbers:*\n";
+        message += presentOnes.map((s) => s.rollNumber).join(", ");
+        break;
+      case 4: // Present Name & Roll No
+        message += "*Present Students:*\n";
+        for (var s in presentOnes) {
+          message += "- ${s.name} (${s.rollNumber})\n";
+        }
+        break;
+      case 5: // Complete Attendance
+        message += "*Summary:*\nPresent: ${presentOnes.length}\nAbsent: ${absentOnes.length}\n\n";
+        message += "*Full List:*\n";
+        for (var s in _subjectStudents) {
+          String status = _statuses[s.id] == AttendanceStatus.present ? "Present" : (_statuses[s.id] == AttendanceStatus.absent ? "Absent" : "Late");
+          message += "${s.rollNumber} - ${s.name}: $status\n";
+        }
+        break;
+    }
+
+    final url = "whatsapp://send?text=${Uri.encodeComponent(message)}";
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url));
+    } else {
+      // Fallback for web or if WhatsApp not installed
+      final webUrl = "https://wa.me/?text=${Uri.encodeComponent(message)}";
+      await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     int present = _statuses.values.where((s) => s == AttendanceStatus.present).length;
@@ -65,7 +147,7 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
         ),
         actions: [
           IconButton(onPressed: () {}, icon: const Icon(Icons.picture_as_pdf_outlined, size: 20)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.share_outlined, size: 20)),
+          IconButton(onPressed: () => _shareOnWhatsApp(context), icon: const Icon(Icons.share_outlined, size: 20)),
           const SizedBox(width: 8),
         ],
       ),
