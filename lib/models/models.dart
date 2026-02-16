@@ -1,3 +1,5 @@
+enum AttendanceStatus { present, absent, late }
+
 class Student {
   final String id;
   final String name;
@@ -11,8 +13,6 @@ class Student {
     this.enrolledSubjectIds = const [],
   });
 }
-
-enum AttendanceStatus { present, absent, late }
 
 class AttendanceRecord {
   final DateTime date;
@@ -44,7 +44,7 @@ class Subject {
     int actualPresent = 0;
     for (var record in attendanceRecords) {
       actualPresent += record.presentCount;
-      actualPresent += record.lateCount; // Late counts as attendance usually
+      actualPresent += record.lateCount;
     }
     return (actualPresent / totalPossible) * 100;
   }
