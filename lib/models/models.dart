@@ -15,10 +15,11 @@ class Student {
 }
 
 class AttendanceRecord {
+  final int? id; // Added ID for database tracking
   final DateTime date;
   final Map<String, AttendanceStatus> studentStatuses;
 
-  AttendanceRecord({required this.date, required this.studentStatuses});
+  AttendanceRecord({this.id, required this.date, required this.studentStatuses});
 
   int get presentCount => studentStatuses.values.where((s) => s == AttendanceStatus.present).length;
   int get absentCount => studentStatuses.values.where((s) => s == AttendanceStatus.absent).length;

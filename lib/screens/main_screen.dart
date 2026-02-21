@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
-import '../data/mock_data.dart';
+import '../data/database_helper.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'dashboard_screen.dart';
@@ -17,16 +17,34 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  final List<Student> _allStudents = initialStudents;
-  final List<Subject> _subjects = initialSubjects;
+  List<Student> _allStudents = [];
+  List<Subject> _subjects = [];
+  bool _isLoading = true;
 
-  void _addSubject(String name) {
+  @override
+  void initState() {
+    super.initState();
+    _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    setState(() => _isLoading = true);
+    final students = await DatabaseHelper.instance.getAllStudents();
+    final subjects = await DatabaseHelper.instance.getAllSubjects();
     setState(() {
-      _subjects.add(Subject(id: DateTime.now().toString(), name: name));
+      _allStudents = students;
+      _subjects = subjects;
+      _isLoading = false;
     });
   }
 
-  void _editSubject(Subject subject) {
+  Future<void> _addSubject(String name) async {
+    final subject = Subject(id: DateTime.now().toString(), name: name);
+    await DatabaseHelper.instance.insertSubject(subject);
+    _refreshData();
+  }
+
+  Future<void> _editSubject(Subject subject) async {
     final controller = TextEditingController(text: subject.name);
     showModalBottomSheet(
       context: context,
@@ -40,17 +58,16 @@ class _MainScreenState extends State<MainScreen> {
           TextField(controller: controller, decoration: const InputDecoration(hintText: 'Subject Name')),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (controller.text.isNotEmpty) {
-                setState(() {
-                  final index = _subjects.indexWhere((s) => s.id == subject.id);
-                  _subjects[index] = Subject(
-                    id: subject.id,
-                    name: controller.text,
-                    studentIds: subject.studentIds,
-                    attendanceRecords: subject.attendanceRecords,
-                  );
-                });
+                final updated = Subject(
+                  id: subject.id,
+                  name: controller.text,
+                  studentIds: subject.studentIds,
+                  attendanceRecords: subject.attendanceRecords,
+                );
+                await DatabaseHelper.instance.updateSubject(updated);
+                _refreshData();
                 Navigator.pop(context);
               }
             },
@@ -63,7 +80,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _deleteSubject(Subject subject) {
+  Future<void> _deleteSubject(Subject subject) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -72,20 +89,20 @@ class _MainScreenState extends State<MainScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _subjects.removeWhere((s) => s.id == subject.id);
-                // Also update students' enrolledSubjectIds
-                for (int i = 0; i < _allStudents.length; i++) {
-                  List<String> updatedEnrolled = List.from(_allStudents[i].enrolledSubjectIds)..remove(subject.id);
-                  _allStudents[i] = Student(
-                    id: _allStudents[i].id,
-                    name: _allStudents[i].name,
-                    rollNumber: _allStudents[i].rollNumber,
-                    enrolledSubjectIds: updatedEnrolled,
-                  );
+            onPressed: () async {
+              await DatabaseHelper.instance.deleteSubject(subject.id);
+              for (var student in _allStudents) {
+                if (student.enrolledSubjectIds.contains(subject.id)) {
+                  List<String> updated = List.from(student.enrolledSubjectIds)..remove(subject.id);
+                  await DatabaseHelper.instance.updateStudent(Student(
+                    id: student.id,
+                    name: student.name,
+                    rollNumber: student.rollNumber,
+                    enrolledSubjectIds: updated,
+                  ));
                 }
-              });
+              }
+              _refreshData();
               Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -95,13 +112,13 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _addStudent(String name, String roll) {
-    setState(() {
-      _allStudents.add(Student(id: DateTime.now().toString(), name: name, rollNumber: roll));
-    });
+  Future<void> _addStudent(String name, String roll) async {
+    final student = Student(id: DateTime.now().toString(), name: name, rollNumber: roll);
+    await DatabaseHelper.instance.insertStudent(student);
+    _refreshData();
   }
 
-  void _editStudent(Student student) {
+  Future<void> _editStudent(Student student) async {
     final name = TextEditingController(text: student.name);
     final roll = TextEditingController(text: student.rollNumber);
     showModalBottomSheet(
@@ -118,17 +135,16 @@ class _MainScreenState extends State<MainScreen> {
           TextField(controller: roll, decoration: const InputDecoration(hintText: 'Roll Number')),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (name.text.isNotEmpty) {
-                setState(() {
-                  final index = _allStudents.indexWhere((s) => s.id == student.id);
-                  _allStudents[index] = Student(
-                    id: student.id,
-                    name: name.text,
-                    rollNumber: roll.text,
-                    enrolledSubjectIds: student.enrolledSubjectIds,
-                  );
-                });
+                final updated = Student(
+                  id: student.id,
+                  name: name.text,
+                  rollNumber: roll.text,
+                  enrolledSubjectIds: student.enrolledSubjectIds,
+                );
+                await DatabaseHelper.instance.updateStudent(updated);
+                _refreshData();
                 Navigator.pop(context);
               }
             },
@@ -141,7 +157,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _deleteStudent(Student student) {
+  Future<void> _deleteStudent(Student student) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -150,19 +166,20 @@ class _MainScreenState extends State<MainScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
-              setState(() {
-                _allStudents.removeWhere((s) => s.id == student.id);
-                for (int i = 0; i < _subjects.length; i++) {
-                  List<String> updatedIds = List.from(_subjects[i].studentIds)..remove(student.id);
-                  _subjects[i] = Subject(
-                    id: _subjects[i].id,
-                    name: _subjects[i].name,
-                    studentIds: updatedIds,
-                    attendanceRecords: _subjects[i].attendanceRecords,
-                  );
+            onPressed: () async {
+              await DatabaseHelper.instance.deleteStudent(student.id);
+              for (var subject in _subjects) {
+                if (subject.studentIds.contains(student.id)) {
+                  List<String> updated = List.from(subject.studentIds)..remove(student.id);
+                  await DatabaseHelper.instance.updateSubject(Subject(
+                    id: subject.id,
+                    name: subject.name,
+                    studentIds: updated,
+                    attendanceRecords: subject.attendanceRecords,
+                  ));
                 }
-              });
+              }
+              _refreshData();
               Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -172,7 +189,7 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _enrollStudent(Student student) {
+  Future<void> _enrollStudent(Student student) async {
     List<String> tempSelectedSubjectIds = List.from(student.enrolledSubjectIds);
 
     showModalBottomSheet(
@@ -210,34 +227,32 @@ class _MainScreenState extends State<MainScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      final studentIndex = _allStudents.indexWhere((s) => s.id == student.id);
-                      _allStudents[studentIndex] = Student(
-                        id: student.id,
-                        name: student.name,
-                        rollNumber: student.rollNumber,
-                        enrolledSubjectIds: tempSelectedSubjectIds,
-                      );
+                  onPressed: () async {
+                    await DatabaseHelper.instance.updateStudent(Student(
+                      id: student.id,
+                      name: student.name,
+                      rollNumber: student.rollNumber,
+                      enrolledSubjectIds: tempSelectedSubjectIds,
+                    ));
 
-                      for (int i = 0; i < _subjects.length; i++) {
-                        bool shouldBeEnrolled = tempSelectedSubjectIds.contains(_subjects[i].id);
-                        List<String> updatedStudentIds = List.from(_subjects[i].studentIds);
-                        
-                        if (shouldBeEnrolled && !updatedStudentIds.contains(student.id)) {
-                          updatedStudentIds.add(student.id);
-                        } else if (!shouldBeEnrolled && updatedStudentIds.contains(student.id)) {
-                          updatedStudentIds.remove(student.id);
-                        }
-
-                        _subjects[i] = Subject(
-                          id: _subjects[i].id,
-                          name: _subjects[i].name,
-                          studentIds: updatedStudentIds,
-                          attendanceRecords: _subjects[i].attendanceRecords,
-                        );
+                    for (var subject in _subjects) {
+                      bool shouldBeEnrolled = tempSelectedSubjectIds.contains(subject.id);
+                      List<String> updatedStudentIds = List.from(subject.studentIds);
+                      
+                      if (shouldBeEnrolled && !updatedStudentIds.contains(student.id)) {
+                        updatedStudentIds.add(student.id);
+                      } else if (!shouldBeEnrolled && updatedStudentIds.contains(student.id)) {
+                        updatedStudentIds.remove(student.id);
                       }
-                    });
+
+                      await DatabaseHelper.instance.updateSubject(Subject(
+                        id: subject.id,
+                        name: subject.name,
+                        studentIds: updatedStudentIds,
+                        attendanceRecords: subject.attendanceRecords,
+                      ));
+                    }
+                    _refreshData();
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
@@ -256,25 +271,129 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  void _saveAttendance(Subject subject, AttendanceRecord record) {
-    setState(() {
-      final index = _subjects.indexWhere((s) => s.id == subject.id);
-      if (index != -1) {
-        List<AttendanceRecord> updatedRecords = List.from(_subjects[index].attendanceRecords)..add(record);
-        _subjects[index] = Subject(
-          id: _subjects[index].id,
-          name: _subjects[index].name,
-          studentIds: _subjects[index].studentIds,
-          attendanceRecords: updatedRecords,
-        );
-      }
-    });
+  Future<void> _enrollStudentsInSubject(Subject subject) async {
+    List<String> tempSelectedStudentIds = List.from(subject.studentIds);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Enroll Students in ${subject.name}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Select students to enroll in this subject:', style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _allStudents.length,
+                  itemBuilder: (context, index) {
+                    final student = _allStudents[index];
+                    bool isSelected = tempSelectedStudentIds.contains(student.id);
+                    return CheckboxListTile(
+                      title: Text(student.name),
+                      subtitle: Text(student.rollNumber),
+                      value: isSelected,
+                      activeColor: const Color(0xFF7C3AED),
+                      onChanged: (bool? value) {
+                        setModalState(() {
+                          if (value == true) {
+                            tempSelectedStudentIds.add(student.id);
+                          } else {
+                            tempSelectedStudentIds.remove(student.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Update Subject
+                    await DatabaseHelper.instance.updateSubject(Subject(
+                      id: subject.id,
+                      name: subject.name,
+                      studentIds: tempSelectedStudentIds,
+                      attendanceRecords: subject.attendanceRecords,
+                    ));
+
+                    // Update Students
+                    for (var student in _allStudents) {
+                      bool shouldBeEnrolled = tempSelectedStudentIds.contains(student.id);
+                      List<String> updatedEnrolledSubjectIds = List.from(student.enrolledSubjectIds);
+                      
+                      if (shouldBeEnrolled && !updatedEnrolledSubjectIds.contains(subject.id)) {
+                        updatedEnrolledSubjectIds.add(subject.id);
+                      } else if (!shouldBeEnrolled && updatedEnrolledSubjectIds.contains(subject.id)) {
+                        updatedEnrolledSubjectIds.remove(subject.id);
+                      }
+
+                      await DatabaseHelper.instance.updateStudent(Student(
+                        id: student.id,
+                        name: student.name,
+                        rollNumber: student.rollNumber,
+                        enrolledSubjectIds: updatedEnrolledSubjectIds,
+                      ));
+                    }
+                    _refreshData();
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7C3AED),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Save Enrollment', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveAttendance(Subject subject, AttendanceRecord record) async {
+    if (record.id != null) {
+      await DatabaseHelper.instance.updateAttendanceRecord(record);
+    } else {
+      await DatabaseHelper.instance.insertAttendanceRecord(subject.id, record);
+    }
+    _refreshData();
+  }
+
+  void _editAttendanceRecord(Subject subject, AttendanceRecord record) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TakeAttendanceScreen(
+          subject: subject,
+          allStudents: _allStudents,
+          existingRecord: record,
+          onSave: (updatedRecord) => _saveAttendance(subject, updatedRecord),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isWideScreen = MediaQuery.of(context).size.width > 900;
     final bool useMobileLayout = !isWideScreen;
+
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -338,6 +457,7 @@ class _MainScreenState extends State<MainScreen> {
           },
           onEditSubject: _editSubject,
           onDeleteSubject: _deleteSubject,
+          onEnrollStudents: _enrollStudentsInSubject,
         );
       case 1:
         return StudentManagementScreen(
@@ -348,7 +468,11 @@ class _MainScreenState extends State<MainScreen> {
           onEnroll: _enrollStudent,
         );
       case 2:
-        return HistoryScreen(isWide: isWide);
+        return HistoryScreen(
+          isWide: isWide, 
+          subjects: _subjects,
+          onEditRecord: _editAttendanceRecord,
+        );
       default:
         return Container();
     }

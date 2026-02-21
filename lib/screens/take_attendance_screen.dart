@@ -6,12 +6,14 @@ import '../models/models.dart';
 class TakeAttendanceScreen extends StatefulWidget {
   final Subject subject;
   final List<Student> allStudents;
+  final AttendanceRecord? existingRecord; // Optional: for editing
   final Function(AttendanceRecord) onSave;
 
   const TakeAttendanceScreen({
     super.key,
     required this.subject,
     required this.allStudents,
+    this.existingRecord,
     required this.onSave,
   });
 
@@ -29,9 +31,22 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
     _subjectStudents = widget.allStudents
         .where((s) => widget.subject.studentIds.contains(s.id))
         .toList();
-    _statuses = {
-      for (var s in _subjectStudents) s.id: AttendanceStatus.present
-    };
+    
+    if (widget.existingRecord != null) {
+      // Load existing statuses if editing
+      _statuses = Map.from(widget.existingRecord!.studentStatuses);
+      // Ensure any newly added students are included as well (default to absent if not in record)
+      for (var s in _subjectStudents) {
+        if (!_statuses.containsKey(s.id)) {
+          _statuses[s.id] = AttendanceStatus.absent;
+        }
+      }
+    } else {
+      // Default all to present for new record
+      _statuses = {
+        for (var s in _subjectStudents) s.id: AttendanceStatus.present
+      };
+    }
   }
 
   void _updateStatus(String studentId, AttendanceStatus status) {
@@ -82,34 +97,34 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
   }
 
   void _generateAndSendWhatsApp(int type) async {
-    String dateStr = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    String dateStr = DateFormat('dd/MM/yyyy').format(widget.existingRecord?.date ?? DateTime.now());
     String message = "*Attendance Report - ${widget.subject.name}*\nDate: $dateStr\n\n";
 
     List<Student> presentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.present || _statuses[s.id] == AttendanceStatus.late).toList();
     List<Student> absentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.absent).toList();
 
     switch (type) {
-      case 1: // Absent Name & Roll No
+      case 1:
         message += "*Absent Students:*\n";
         for (var s in absentOnes) {
           message += "- ${s.name} (${s.rollNumber})\n";
         }
         break;
-      case 2: // Absent Roll No Only
+      case 2:
         message += "*Absent Roll Numbers:*\n";
         message += absentOnes.map((s) => s.rollNumber).join(", ");
         break;
-      case 3: // Present Roll No Only
+      case 3:
         message += "*Present Roll Numbers:*\n";
         message += presentOnes.map((s) => s.rollNumber).join(", ");
         break;
-      case 4: // Present Name & Roll No
+      case 4:
         message += "*Present Students:*\n";
         for (var s in presentOnes) {
           message += "- ${s.name} (${s.rollNumber})\n";
         }
         break;
-      case 5: // Complete Attendance
+      case 5:
         message += "*Summary:*\nPresent: ${presentOnes.length}\nAbsent: ${absentOnes.length}\n\n";
         message += "*Full List:*\n";
         for (var s in _subjectStudents) {
@@ -123,7 +138,6 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
     } else {
-      // Fallback for web or if WhatsApp not installed
       final webUrl = "https://wa.me/?text=${Uri.encodeComponent(message)}";
       await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
     }
@@ -142,11 +156,13 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.subject.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            Text(DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              DateFormat('EEEE, MMMM d, yyyy').format(widget.existingRecord?.date ?? DateTime.now()), 
+              style: const TextStyle(fontSize: 12, color: Colors.grey)
+            ),
           ],
         ),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.picture_as_pdf_outlined, size: 20)),
           IconButton(onPressed: () => _shareOnWhatsApp(context), icon: const Icon(Icons.share_outlined, size: 20)),
           const SizedBox(width: 8),
         ],
@@ -192,7 +208,11 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
             padding: const EdgeInsets.all(20.0),
             child: ElevatedButton(
               onPressed: () {
-                widget.onSave(AttendanceRecord(date: DateTime.now(), studentStatuses: _statuses));
+                widget.onSave(AttendanceRecord(
+                  id: widget.existingRecord?.id,
+                  date: widget.existingRecord?.date ?? DateTime.now(), 
+                  studentStatuses: _statuses
+                ));
                 Navigator.pop(context);
               },
               style: ElevatedButton.styleFrom(
@@ -201,7 +221,10 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
                 minimumSize: const Size(double.infinity, 56),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Save Attendance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text(
+                widget.existingRecord != null ? 'Update Attendance' : 'Save Attendance', 
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+              ),
             ),
           ),
         ],
@@ -229,7 +252,7 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
   }
 
   Widget _studentAttendanceTile(Student student) {
-    final status = _statuses[student.id];
+    final status = _statuses[student.id] ?? AttendanceStatus.absent;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),

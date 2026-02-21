@@ -1,4 +1,4 @@
-name: attendence_app
+name: Attendence_app
 description: "A new Flutter project."
 publish_to: 'none'
 
@@ -13,6 +13,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   intl: ^0.18.1
   url_launcher: ^6.1.12
+  sqflite: ^2.3.0
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:

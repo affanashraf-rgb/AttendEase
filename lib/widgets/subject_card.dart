@@ -7,6 +7,7 @@ class SubjectCard extends StatelessWidget {
   final VoidCallback onMarkAttendance;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onEnroll;
 
   const SubjectCard({
     super.key,
@@ -15,6 +16,7 @@ class SubjectCard extends StatelessWidget {
     required this.onMarkAttendance,
     required this.onEdit,
     required this.onDelete,
+    required this.onEnroll,
   });
 
   @override
@@ -50,16 +52,28 @@ class SubjectCard extends StatelessWidget {
                     onEdit();
                   } else if (value == 'delete') {
                     onDelete();
+                  } else if (value == 'enroll') {
+                    onEnroll();
                   }
                 },
                 itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'enroll',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_add_alt_1_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Text('Enroll Students'),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'edit',
                     child: Row(
                       children: [
                         Icon(Icons.edit_outlined, size: 18),
                         SizedBox(width: 8),
-                        Text('Edit'),
+                        Text('Edit Name'),
                       ],
                     ),
                   ),

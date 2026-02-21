@@ -11,6 +11,7 @@ class DashboardScreen extends StatelessWidget {
   final Function(Subject) onMarkAttendance;
   final Function(Subject) onEditSubject;
   final Function(Subject) onDeleteSubject;
+  final Function(Subject) onEnrollStudents;
 
   const DashboardScreen({
     super.key,
@@ -21,6 +22,7 @@ class DashboardScreen extends StatelessWidget {
     required this.onMarkAttendance,
     required this.onEditSubject,
     required this.onDeleteSubject,
+    required this.onEnrollStudents,
   });
 
   @override
@@ -81,6 +83,23 @@ class DashboardScreen extends StatelessWidget {
   }
 
   Widget _buildStatsGrid(BuildContext context) {
+    // Calculate Overall Attendance
+    int totalPossibleAttendance = 0;
+    int totalActualAttendance = 0;
+
+    for (var subject in subjects) {
+      if (subject.studentIds.isNotEmpty) {
+        totalPossibleAttendance += subject.attendanceRecords.length * subject.studentIds.length;
+        for (var record in subject.attendanceRecords) {
+          totalActualAttendance += record.presentCount + record.lateCount;
+        }
+      }
+    }
+
+    double overallPercentage = totalPossibleAttendance == 0 
+        ? 0.0 
+        : (totalActualAttendance / totalPossibleAttendance) * 100;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = isWide ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
@@ -95,20 +114,20 @@ class DashboardScreen extends StatelessWidget {
             StatCard(
               title: 'Total Students',
               value: '${allStudents.length}',
-              trend: '+4',
+              trend: 'Across all classes',
               icon: Icons.group,
               isPrimary: true,
             ),
             StatCard(
               title: 'Active Subjects',
               value: '${subjects.length}',
-              trend: '0',
+              trend: 'Currently teaching',
               icon: Icons.book_outlined,
             ),
-            const StatCard(
+            StatCard(
               title: 'Overall Attendance',
-              value: '88.4%',
-              trend: '+2.1%',
+              value: '${overallPercentage.toStringAsFixed(1)}%',
+              trend: 'Average rate',
               icon: Icons.pie_chart_outline,
             ),
           ],
@@ -137,6 +156,7 @@ class DashboardScreen extends StatelessWidget {
             onMarkAttendance: () => onMarkAttendance(subjects[index]),
             onEdit: () => onEditSubject(subjects[index]),
             onDelete: () => onDeleteSubject(subjects[index]),
+            onEnroll: () => onEnrollStudents(subjects[index]),
           ),
         );
       },

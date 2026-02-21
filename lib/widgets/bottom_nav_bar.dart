@@ -29,6 +29,8 @@ class BottomNavBar extends StatelessWidget {
         selectedItemColor: const Color(0xFF7C3AED),
         unselectedItemColor: Colors.grey[400],
         type: BottomNavigationBarType.fixed,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.grid_view_rounded),
