@@ -1,12 +1,16 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../models/models.dart';
 
 class TakeAttendanceScreen extends StatefulWidget {
   final Subject subject;
   final List<Student> allStudents;
-  final AttendanceRecord? existingRecord; // Optional: for editing
+  final AttendanceRecord? existingRecord;
   final Function(AttendanceRecord) onSave;
 
   const TakeAttendanceScreen({
@@ -24,6 +28,7 @@ class TakeAttendanceScreen extends StatefulWidget {
 class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
   late Map<String, AttendanceStatus> _statuses;
   late List<Student> _subjectStudents;
+  late AttendanceType _attendanceType;
 
   @override
   void initState() {
@@ -32,17 +37,16 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
         .where((s) => widget.subject.studentIds.contains(s.id))
         .toList();
     
+    _attendanceType = widget.existingRecord?.type ?? AttendanceType.classAttendance;
+
     if (widget.existingRecord != null) {
-      // Load existing statuses if editing
       _statuses = Map.from(widget.existingRecord!.studentStatuses);
-      // Ensure any newly added students are included as well (default to absent if not in record)
       for (var s in _subjectStudents) {
         if (!_statuses.containsKey(s.id)) {
           _statuses[s.id] = AttendanceStatus.absent;
         }
       }
     } else {
-      // Default all to present for new record
       _statuses = {
         for (var s in _subjectStudents) s.id: AttendanceStatus.present
       };
@@ -61,6 +65,137 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
         _statuses[id] = AttendanceStatus.present;
       }
     });
+  }
+
+  Future<void> _generatePdf() async {
+    final pdf = pw.Document();
+    final now = widget.existingRecord?.date ?? DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    
+    final weeklyRecords = widget.subject.attendanceRecords.where((r) {
+      return r.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) && 
+             r.date.isBefore(weekEnd.add(const Duration(days: 1)));
+    }).toList();
+    
+    weeklyRecords.sort((a, b) => a.date.compareTo(b.date));
+
+    final sortedStudents = List<Student>.from(_subjectStudents)
+      ..sort((a, b) => a.rollNumber.compareTo(b.rollNumber));
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(30),
+        build: (pw.Context context) {
+          return [
+            pw.Header(
+              level: 0,
+              child: pw.Column(
+                children: [
+                  pw.Center(
+                    child: pw.Text('WEEKLY ATTENDANCE REPORT', 
+                      style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.SizedBox(height: 15),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Subject: ${widget.subject.name}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Type: ${_attendanceType == AttendanceType.classAttendance ? "Class" : "Lab"}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Duration: ${DateFormat('dd MMM').format(weekStart)} - ${DateFormat('dd MMM').format(weekEnd)}', 
+                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 10),
+                ],
+              ),
+            ),
+            pw.Table(
+              border: pw.TableBorder.all(width: 1),
+              columnWidths: {
+                0: const pw.FixedColumnWidth(30), // SR
+                1: const pw.FlexColumnWidth(2.5), // NAME (Reduced from 4)
+                2: const pw.FlexColumnWidth(2), // REG# (Reduced from 3)
+              },
+              defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                  children: [
+                    _pdfCell('SR', isBold: true),
+                    _pdfCell('NAME', isBold: true),
+                    _pdfCell('REG#', isBold: true),
+                    ...List.generate(max(weeklyRecords.length, 6), (i) {
+                      if (i < weeklyRecords.length) {
+                        return _pdfCell(DateFormat('dd/MM').format(weeklyRecords[i].date), isBold: true);
+                      }
+                      return _pdfCell(' ');
+                    }),
+                  ],
+                ),
+                ...sortedStudents.asMap().entries.map((entry) {
+                  final index = entry.key + 1;
+                  final student = entry.value;
+                  return pw.TableRow(
+                    children: [
+                      _pdfCell('$index'),
+                      _pdfCell(student.name),
+                      _pdfCell(student.rollNumber),
+                      ...List.generate(max(weeklyRecords.length, 6), (i) {
+                        if (i < weeklyRecords.length) {
+                          final status = weeklyRecords[i].studentStatuses[student.id];
+                          String mark = '-';
+                          if (status == AttendanceStatus.present) mark = 'P';
+                          if (status == AttendanceStatus.absent) mark = 'A';
+                          if (status == AttendanceStatus.late) mark = 'L';
+                          return _pdfCell(mark);
+                        }
+                        return _pdfCell(' ');
+                      }),
+                    ],
+                  );
+                }).toList(),
+              ],
+            ),
+            pw.SizedBox(height: 40),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.end,
+              children: [
+                pw.Column(
+                  children: [
+                    pw.Container(
+                      width: 180, 
+                      decoration: const pw.BoxDecoration(
+                        border: pw.Border(top: pw.BorderSide(width: 1))
+                      )
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Text('Instructor Signature', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+          ];
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+  }
+
+  pw.Widget _pdfCell(String text, {bool isBold = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(
+          fontSize: 11, 
+          fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal
+        ),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
   }
 
   void _shareOnWhatsApp(BuildContext context) {
@@ -98,7 +233,8 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
 
   void _generateAndSendWhatsApp(int type) async {
     String dateStr = DateFormat('dd/MM/yyyy').format(widget.existingRecord?.date ?? DateTime.now());
-    String message = "*Attendance Report - ${widget.subject.name}*\nDate: $dateStr\n\n";
+    String typeStr = _attendanceType == AttendanceType.classAttendance ? "Class" : "Lab";
+    String message = "*Attendance Report ($typeStr) - ${widget.subject.name}*\nDate: $dateStr\n\n";
 
     List<Student> presentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.present || _statuses[s.id] == AttendanceStatus.late).toList();
     List<Student> absentOnes = _subjectStudents.where((s) => _statuses[s.id] == AttendanceStatus.absent).toList();
@@ -163,12 +299,38 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
           ],
         ),
         actions: [
+          IconButton(onPressed: _generatePdf, icon: const Icon(Icons.picture_as_pdf_outlined, size: 20)),
           IconButton(onPressed: () => _shareOnWhatsApp(context), icon: const Icon(Icons.share_outlined, size: 20)),
           const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
+          // Attendance Type Selector
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+            child: Row(
+              children: [
+                const Text('Type:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 10),
+                ChoiceChip(
+                  label: const Text('Class'),
+                  selected: _attendanceType == AttendanceType.classAttendance,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _attendanceType = AttendanceType.classAttendance);
+                  },
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Lab'),
+                  selected: _attendanceType == AttendanceType.labAttendance,
+                  onSelected: (selected) {
+                    if (selected) setState(() => _attendanceType = AttendanceType.labAttendance);
+                  },
+                ),
+              ],
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: Row(
@@ -211,7 +373,8 @@ class _TakeAttendanceScreenState extends State<TakeAttendanceScreen> {
                 widget.onSave(AttendanceRecord(
                   id: widget.existingRecord?.id,
                   date: widget.existingRecord?.date ?? DateTime.now(), 
-                  studentStatuses: _statuses
+                  studentStatuses: _statuses,
+                  type: _attendanceType,
                 ));
                 Navigator.pop(context);
               },

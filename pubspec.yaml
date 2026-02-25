@@ -1,4 +1,4 @@
-name: Attendence_app
+name: attendence_app
 description: "A new Flutter project."
 publish_to: 'none'
 
@@ -15,11 +15,22 @@ dependencies:
   url_launcher: ^6.1.12
   sqflite: ^2.3.0
   path: ^1.8.3
+  pdf: ^3.10.4
+  printing: ^5.11.0
+  path_provider: ^2.1.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icon/icon.png"
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/

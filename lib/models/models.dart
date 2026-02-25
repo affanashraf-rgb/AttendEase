@@ -1,5 +1,7 @@
 enum AttendanceStatus { present, absent, late }
 
+enum AttendanceType { classAttendance, labAttendance }
+
 class Student {
   final String id;
   final String name;
@@ -15,11 +17,17 @@ class Student {
 }
 
 class AttendanceRecord {
-  final int? id; // Added ID for database tracking
+  final int? id;
   final DateTime date;
   final Map<String, AttendanceStatus> studentStatuses;
+  final AttendanceType type; // Added type
 
-  AttendanceRecord({this.id, required this.date, required this.studentStatuses});
+  AttendanceRecord({
+    this.id, 
+    required this.date, 
+    required this.studentStatuses,
+    this.type = AttendanceType.classAttendance, // Default to class
+  });
 
   int get presentCount => studentStatuses.values.where((s) => s == AttendanceStatus.present).length;
   int get absentCount => studentStatuses.values.where((s) => s == AttendanceStatus.absent).length;
